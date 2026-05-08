@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel Administratora</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Panel Administratora</h1>
+    <div>
+      <button onclick="wyloguj()" class="btn-danger">Wyloguj</button>
+    </div>
+  </div>
+
+
+  <div id="stats-container" class="stats">
+    <div class="stat-box">
+      <h3>Użytkownicy</h3>
+      <div class="number" id="stat-uzytkownicy">-</div>
+    </div>
+    <div class="stat-box">
+      <h3>Szkolenia</h3>
+      <div class="number" id="stat-szkolenia">-</div>
+    </div>
+    <div class="stat-box">
+      <h3>Aktywne Zapisy</h3>
+      <div class="number" id="stat-zapisy">-</div>
+    </div>
+    <div class="stat-box">
+      <h3>Certyfikaty</h3>
+      <div class="number" id="stat-certyfikaty">-</div>
+    </div>
+  </div>
+
+  <div class="tab-buttons">
+    <button onclick="pokazTab('tab-uzytkownicy')" class="btn-primary">Zarządzaj użytkownikami</button>
+    <button onclick="pokazTab('tab-szkolenia')" class="btn-secondary">Szkolenia</button>
+    <button onclick="pokazTab('tab-raporty')" class="btn-secondary">Raporty</button>
+  </div>
+
+
+  <div id="tab-uzytkownicy" style="display: block;">
+    <h2>Zarządzanie użytkownikami</h2>
+    <div class="search-bar">
+      <input type="text" id="szukaj-uzytkownika" placeholder="Szukaj użytkownika..." style="width: 300px;">
+    </div>
+    <table id="table-uzytkownicy">
+      <thead>
+        <tr>
+          <th>Imię</th>
+          <th>Nazwisko</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Data rejestracji</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-uzytkownicy"></tbody>
+    </table>
+  </div>
+
+
+  <div id="tab-szkolenia" style="display: none;">
+    <h2>Zarządzanie szkoleniami</h2>
+    <table id="table-szkolenia">
+      <thead>
+        <tr>
+          <th>Tytuł</th>
+          <th>Trener</th>
+          <th>Status</th>
+          <th>Limit</th>
+          <th>Cena</th>
+          <th>Akcje</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-szkolenia"></tbody>
+    </table>
+  </div>
+
+
+  <div id="tab-raporty" style="display: none;">
+    <h2>Raporty systemu</h2>
+    <button onclick="generujRaport()" class="btn-primary" style="margin-bottom: 15px;">Generuj pełny raport</button>
+    <div id="raport-content"></div>
+  </div>
+</div>
+
+
+<div id="modal-zmien-role" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-zmien-role')">&times;</span>
+    <h2>Zmień rolę użytkownika</h2>
+    
+    <div class="form-group">
+      <p id="modal-uzytkownik-info"></p>
+    </div>
+    
+    <div class="form-group">
+      <label>Nowa rola:</label>
+      <select id="forma-nowa-rola">
+        <option value="">-- Wybierz rolę --</option>
+        <option value="1">Administrator</option>
+        <option value="2">Uczestnik</option>
+        <option value="3">Trener</option>
+      </select>
+    </div>
+    
+    <button onclick="aktualizujRole()" class="btn-primary">Aktualizuj rolę</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+let aktualnyUzytkownikId = null;
+let wszyscyUzytkownicy = [];
+let wszystkieSzkolenia = [];
+
+const token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = "index.html";
+}
+
+function getAuthHeader() {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+function wyloguj() {
+  localStorage.clear();
+  window.location.href = "index.html";
+}
+
+function pokazTab(tabId) {
+  document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+    tab.style.display = 'none';
+  });
+  document.getElementById(tabId).style.display = 'block';
+  
+  if (tabId === 'tab-uzytkownicy') {
+    pobierzUzytkownikow();
+  } else if (tabId === 'tab-szkolenia') {
+    pobierzSzkolenia();
+  }
+}
+
+async function pobierzStatystyki() {
+  try {
+    const res = await fetch(API_URL + '/statystyki', {
+      headers: getAuthHeader()
+    });
+    const stats = await res.json();
+    
+    document.getElementById('stat-uzytkownicy').textContent = stats.uzytkownicy;
+    document.getElementById('stat-szkolenia').textContent = stats.szkolenia;
+    document.getElementById('stat-zapisy').textContent = stats.aktywneZapisy;
+    document.getElementById('stat-certyfikaty').textContent = stats.certyfikaty;
+  } catch (err) {
+    console.error('Błąd:', err);
+  }
+}
+
+async function pobierzUzytkownikow() {
+  try {
+    const res = await fetch(API_URL + '/admin/uzytkownicy', {
+      headers: getAuthHeader()
+    });
+    const uzytkownicy = await res.json();
+    wszyscyUzytkownicy = uzytkownicy;
+    wyswietlUzytkownikow(uzytkownicy);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlUzytkownikow(uzytkownicy) {
+  const tbody = document.getElementById('tbody-uzytkownicy');
+  tbody.innerHTML = '';
+  
+  uzytkownicy.forEach(u => {
+    const role_badges = u.role ? u.role.map(r => {
+      let klasa = 'role-uczestnik';
+      if (r === 'Administrator') klasa = 'role-admin';
+      else if (r === 'Trener') klasa = 'role-trener';
+      else if (r === 'Organizator') klasa = 'role-organizator';
+      return `<span class="role-badge ${klasa}">${r}</span>`;
+    }).join('') : '<span class="role-badge role-uczestnik">Uczestnik</span>';
+    
+    const data_rej = new Date(u.data_utworzenia).toLocaleDateString('pl-PL');
+    
+    const row = `
+      <tr>
+        <td>${u.imie}</td>
+        <td>${u.nazwisko}</td>
+        <td>${u.email}</td>
+        <td>${role_badges}</td>
+        <td>${data_rej}</td>
+        <td>
+          <button onclick="otworzModalZmienRole(${u.id}, '${u.imie} ${u.nazwisko}')" class="btn-warning" style="font-size:12px; padding: 5px 10px;">Zmień rolę</button>
+        </td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+}
+
+function otworzModalZmienRole(uzytkownik_id, nazwa) {
+  aktualnyUzytkownikId = uzytkownik_id;
+  document.getElementById('modal-uzytkownik-info').textContent = 'Zmień rolę dla: ' + nazwa;
+  document.getElementById('modal-zmien-role').style.display = 'block';
+}
+
+async function aktualizujRole() {
+  const rola_id = document.getElementById('forma-nowa-rola').value;
+  
+  if (!rola_id) {
+    alert('Wybierz rolę');
+    return;
+  }
+  
+  try {
+    const res = await fetch(API_URL + '/admin/uzytkownicy/' + aktualnyUzytkownikId + '/rola', {
+      method: 'PUT',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ rola_id })
+    });
+    
+    if (res.ok) {
+      alert('Rola zaktualizowana!');
+      zamknijModal('modal-zmien-role');
+      pobierzUzytkownikow();
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('szukaj-uzytkownika').addEventListener('keyup', function() {
+    const szukaj = this.value.toLowerCase();
+    const przefiltrowane = wszyscyUzytkownicy.filter(u =>
+      u.imie.toLowerCase().includes(szukaj) ||
+      u.nazwisko.toLowerCase().includes(szukaj) ||
+      u.email.toLowerCase().includes(szukaj)
+    );
+    wyswietlUzytkownikow(przefiltrowane);
+  });
+  
+  pobierzStatystyki();
+  pobierzUzytkownikow();
+});
+
+async function pobierzSzkolenia() {
+  try {
+    const res = await fetch(API_URL + '/szkolenia');
+    const szkolenia = await res.json();
+    wszystkieSzkolenia = szkolenia;
+    wyswietlSzkolenia(szkolenia);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlSzkolenia(szkolenia) {
+  const tbody = document.getElementById('tbody-szkolenia');
+  tbody.innerHTML = '';
+  
+  szkolenia.forEach(s => {
+    const trener = s.imie ? `${s.imie} ${s.nazwisko}` : 'Brak';
+    const row = `
+      <tr>
+        <td>${s.tytul}</td>
+        <td>${trener}</td>
+        <td>${s.status || 'Aktywne'}</td>
+        <td>${s.limit_miejsc || 'Brak'}</td>
+        <td>${s.cena || 'Brak'} zł</td>
+        <td>
+          <button onclick="usunSzkolenie(${s.id})" class="btn-danger" style="font-size:12px; padding: 5px 10px;">Usun</button>
+        </td>
+      </tr>
+    `;
+    tbody.innerHTML += row;
+  });
+}
+
+async function usunSzkolenie(szkolenieId) {
+  const szkolenie = wszystkieSzkolenia.find(s => s.id === szkolenieId);
+  const nazwa = szkolenie ? szkolenie.tytul : 'wybrane szkolenie';
+
+  if (!confirm(`Czy na pewno usunac szkolenie "${nazwa}"? Tej operacji nie mozna cofnac.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + '/szkolenia/' + szkolenieId, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.error || 'Nie udalo sie usunac szkolenia');
+      return;
+    }
+
+    alert(data.message || 'Szkolenie usuniete');
+    await pobierzSzkolenia();
+    await pobierzStatystyki();
+  } catch (err) {
+    alert('Blad: ' + err);
+  }
+}
+
+function generujRaport() {
+  const raportContent = document.getElementById('raport-content');
+  const data = new Date().toLocaleDateString('pl-PL');
+  const czas = new Date().toLocaleTimeString('pl-PL');
+  
+  raportContent.innerHTML = `
+    <h3>Raport Systemu - ${data} ${czas}</h3>
+    <p>
+      <strong>Użytkownicy:</strong> <span id="raport-uzytkownicy"></span><br>
+      <strong>Szkolenia:</strong> <span id="raport-szkolenia"></span><br>
+      <strong>Aktywne zapisy:</strong> <span id="raport-zapisy"></span><br>
+      <strong>Wydane certyfikaty:</strong> <span id="raport-certyfikaty"></span>
+    </p>
+    <button onclick="pobierzStatystyki(); window.print();" class="btn-primary">Drukuj raport</button>
+  `;
+  
+  document.getElementById('raport-uzytkownicy').textContent = document.getElementById('stat-uzytkownicy').textContent;
+  document.getElementById('raport-szkolenia').textContent = document.getElementById('stat-szkolenia').textContent;
+  document.getElementById('raport-zapisy').textContent = document.getElementById('stat-zapisy').textContent;
+  document.getElementById('raport-certyfikaty').textContent = document.getElementById('stat-certyfikaty').textContent;
+}
+
+
+function zamknijModal(modalId) {
+  document.getElementById(modalId).style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modal = document.getElementById('modal-zmien-role');
+  if (event.target == modal) {
+    modal.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Szkolenia - System Zarządzania Szkoleniami</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Szkolenia</h1>
+    <div>
+      <button onclick="pokazTabMojeZapisy()" class="btn-secondary">Moje Zapisy</button>
+      <button onclick="pokazTabSzkolenia()" class="btn-primary">Dostępne Szkolenia</button>
+      <button onclick="Powrot()" class="btn-danger">Powrót</button>
+      
+    </div>
+  </div>
+
+  <div id="tab-szkolenia" style="display: block;">
+    <h2>Dostępne szkolenia</h2>
+    <input type="text" id="szukaj" placeholder="Szukaj szkolenia..." style="padding: 10px; margin: 10px 0; width: 300px;">
+    <div id="lista-szkolen"></div>
+  </div>
+
+  <div id="tab-moje-zapisy" style="display: none;">
+    <h2>Moje zapisy na szkolenia</h2>
+    <div id="lista-zapis"></div>
+  </div>
+</div>
+
+
+<div id="modal-szczegoly" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-szczegoly')">&times;</span>
+    <h2 id="modal-tytul"></h2>
+    <p><strong>Trener:</strong> <span id="modal-trener"></span></p>
+    <p><strong>Opis:</strong> <span id="modal-opis"></span></p>
+    <p><strong>Cena:</strong> <span id="modal-cena"></span> zł</p>
+    <p><strong>Limit miejsc:</strong> <span id="modal-limit"></span></p>
+    <p><strong>Data rozpoczęcia:</strong> <span id="modal-data-start"></span></p>
+    <p><strong>Data zakończenia:</strong> <span id="modal-data-end"></span></p>
+    <p><strong>Status:</strong> <span id="modal-status"></span></p>
+    
+    <div id="modal-program">
+      <h3>Terminy szkolenia:</h3>
+      <ul id="program-lista"></ul>
+    </div>
+    
+    <button id="btn-zapisz" class="btn-primary" onclick="zapisSieNaSzkolenie()">Zapisz się</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+let aktualneSzkolenie = null;
+let wszystkieSzkolenia = [];
+
+
+const token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = "index.html";
+}
+
+function getAuthHeader() {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+
+function pokazTabSzkolenia() {
+  document.getElementById('tab-szkolenia').style.display = 'block';
+  document.getElementById('tab-moje-zapisy').style.display = 'none';
+  pobierzSzkolenia();
+}
+
+function pokazTabMojeZapisy() {
+  document.getElementById('tab-szkolenia').style.display = 'none';
+  document.getElementById('tab-moje-zapisy').style.display = 'block';
+  pobierzMojeZapisy();
+}
+
+async function pobierzSzkolenia() {
+  try {
+    const res = await fetch(API_URL + '/szkolenia');
+    const dane = await res.json();
+    wszystkieSzkolenia = dane;
+    wyswietlSzkolenia(dane);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function Powrot() {
+  window.location.href = "strona.html";
+}
+function wyswietlSzkolenia(szkolenia) {
+  const lista = document.getElementById('lista-szkolen');
+  lista.innerHTML = '';
+  
+  szkolenia.forEach(s => {
+    const trener = s.imie ? `${s.imie} ${s.nazwisko}` : 'Nie przypisany';
+    const card = `
+      <div class="szkolenie-card">
+        <h3>${s.tytul}</h3>
+        <p><strong>Trener:</strong> ${trener}</p>
+        <p>${s.opis}</p>
+        <p><strong>Cena:</strong> ${s.cena || 'Brak'} zł | <strong>Limit miejsc:</strong> ${s.limit_miejsc || 'Brak'}</p>
+        <button class="btn-secondary" onclick="pokazSzczegoly(${s.id})">Szczegóły</button>
+      </div>
+    `;
+    lista.innerHTML += card;
+  });
+}
+
+async function pokazSzczegoly(szkolenie_id) {
+  try {
+    const res = await fetch(API_URL + '/szkolenia/' + szkolenie_id);
+    const szkolenie = await res.json();
+    aktualneSzkolenie = szkolenie;
+    
+    const trener = szkolenie.imie ? `${szkolenie.imie} ${szkolenie.nazwisko}` : 'Nie przypisany';
+    document.getElementById('modal-tytul').textContent = szkolenie.tytul;
+    document.getElementById('modal-trener').textContent = trener;
+    document.getElementById('modal-opis').textContent = szkolenie.opis || 'Brak opisu';
+    document.getElementById('modal-cena').textContent = szkolenie.cena || 'Brak';
+    document.getElementById('modal-limit').textContent = szkolenie.limit_miejsc || 'Brak';
+    document.getElementById('modal-data-start').textContent = szkolenie.data_rozpoczecia ? new Date(szkolenie.data_rozpoczecia).toLocaleDateString('pl-PL') : 'Nie ustalona';
+    document.getElementById('modal-data-end').textContent = szkolenie.data_zakonczenia ? new Date(szkolenie.data_zakonczenia).toLocaleDateString('pl-PL') : 'Nie ustalona';
+    document.getElementById('modal-status').textContent = szkolenie.status || 'Aktywne';
+    
+    const programLista = document.getElementById('program-lista');
+    programLista.innerHTML = '';
+    try {
+      const terminyRes = await fetch(`${API_URL}/terminy/${szkolenie_id}`, { 
+        headers: getAuthHeader() 
+      });
+      if (terminyRes.ok) {
+        const terminy = await terminyRes.json();
+        if (terminy.length > 0) {
+          terminy.forEach(t => {
+            const date = new Date(t.termin);
+            const formatowany = date.toLocaleString('pl-PL', { 
+              year: 'numeric', 
+              month: '2-digit', 
+              day: '2-digit', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+            programLista.innerHTML += `<li>${formatowany}</li>`;
+          });
+        } else {
+          programLista.innerHTML = '<li>Brak terminów</li>';
+        }
+      } else {
+        programLista.innerHTML = '<li>Brak terminów</li>';
+      }
+    } catch (err) {
+      console.error('Błąd pobierania terminów:', err);
+      programLista.innerHTML = '<li>Brak terminów</li>';
+    }
+    
+    document.getElementById('modal-szczegoly').style.display = 'block';
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function zapisSieNaSzkolenie() {
+  try {
+    const res = await fetch(API_URL + '/zapisy', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ szkolenie_id: aktualneSzkolenie.id })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      alert('Pomyślnie zapisano na szkolenie!');
+      zamknijModal('modal-szczegoly');
+      pokazTabMojeZapisy();
+    } else {
+      alert('Błąd: ' + data.error);
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function pobierzMojeZapisy() {
+  try {
+    const res = await fetch(API_URL + '/moje-zapisy', {
+      headers: getAuthHeader()
+    });
+    const zapisy = await res.json();
+    wyswietlMojeZapisy(zapisy);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlMojeZapisy(zapisy) {
+  const lista = document.getElementById('lista-zapis');
+  lista.innerHTML = '';
+  
+  if (zapisy.length === 0) {
+    lista.innerHTML = '<p>Nie masz żadnych zapisów.</p>';
+    return;
+  }
+  
+  zapisy.forEach(z => {
+    const trener = z.imie ? `${z.imie} ${z.nazwisko}` : 'Nie przypisany';
+    const statusKlasa = z.status === 'aktywny' ? 'moje-zapisy' : '';
+    const card = `
+      <div class="szkolenie-card ${statusKlasa}">
+        <h3>${z.tytul}</h3>
+        <p><strong>Trener:</strong> ${trener}</p>
+        <p><strong>Data zapisania:</strong> ${new Date(z.data_zapisu).toLocaleDateString('pl-PL')}</p>
+        <p><strong>Status:</strong> <span style="color: ${z.status === 'aktywny' ? 'green' : 'red'}">${z.status}</span></p>
+        <p><strong>Data rozpoczęcia:</strong> ${z.data_rozpoczecia ? new Date(z.data_rozpoczecia).toLocaleDateString('pl-PL') : 'Nie ustalona'}</p>
+        <p><strong>Data zakończenia:</strong> ${z.data_zakonczenia ? new Date(z.data_zakonczenia).toLocaleDateString('pl-PL') : 'Nie ustalona'}</p>
+        ${z.status === 'aktywny' ? `<button class="btn-danger" onclick="anulujZapis(${z.id})">Anuluj zapis</button>` : ''}
+      </div>
+    `;
+    lista.innerHTML += card;
+  });
+}
+
+async function anulujZapis(zapis_id) {
+  if (!confirm('Czy na pewno chcesz anulować zapis?')) return;
+  
+  try {
+    const res = await fetch(API_URL + '/zapisy/' + zapis_id + '/anuluj', {
+      method: 'POST',
+      headers: getAuthHeader()
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      alert('Zapis anulowany');
+      pobierzMojeZapisy();
+    } else {
+      alert('Błąd: ' + data.error);
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('szukaj').addEventListener('keyup', function() {
+    const szukaj = this.value.toLowerCase();
+    const przefiltrowane = wszystkieSzkolenia.filter(s => 
+      s.tytul.toLowerCase().includes(szukaj) || 
+      s.opis.toLowerCase().includes(szukaj)
+    );
+    wyswietlSzkolenia(przefiltrowane);
+  });
+  
+  pobierzSzkolenia();
+});
+
+function zamknijModal(modalId) {
+  document.getElementById(modalId).style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modal = document.getElementById('modal-szczegoly');
+  if (event.target == modal) {
+    modal.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

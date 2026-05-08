@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - System Szkoleniowy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>System Szkoleniowy</h1>
+      <p>Zarządzanie szkoleniami i certyfikatami</p>
+    </div>
+    <div class="user-info">
+      <p id="user-greeting">Zalogowany jako: <strong id="user-name">Ładowanie...</strong></p>
+      <p id="user-role">Rola: <strong id="role-name">Ładowanie...</strong></p>
+      <button onclick="wyloguj()" class="btn btn-danger">Wyloguj się</button>
+    </div>
+  </div>
+
+  <div id="admin-panel" style="display: none;">
+    <div class="admin-section">
+      <h2>Panel Administratora</h2>
+      <p>Zarządzaj systemem, użytkownikami i szkoleniami.</p>
+      <button onclick="idz('admin.html')" class="btn btn-warning">Przejdź do panelu administratora</button>
+    </div>
+  </div>
+
+  <div id="trener-panel" style="display: none;">
+    <div class="trener-section">
+      <h2>Panel Trenera</h2>
+      <p>Zarządzaj swoimi szkoleniami, sesjami i certyfikatami.</p>
+      <button onclick="idz('trener.html')" class="btn btn-warning">Przejdź do panelu trenera</button>
+    </div>
+  </div>
+
+  <h2>Menu główne</h2>
+  <div class="menu">
+    <div class="menu-card">
+      <h3>📚 Szkolenia</h3>
+      <p>Przeglądaj dostępne szkolenia i zapisz się na interesujące cię kursy.</p>
+      <button onclick="idz('szkolenia.html')" class="btn btn-primary">Przejdź do szkoleń</button>
+    </div>
+
+    <div class="menu-card">
+      <h3>📅 Sesje Szkoleniowe</h3>
+      <p>Sprawdź harmonogram i szczegóły sesji szkoleniowych.</p>
+      <button onclick="idz('sesja.html')" class="btn btn-primary">Przejdź do sesji</button>
+    </div>
+
+    <div class="menu-card">
+      <h3>📜 Moje Certyfikaty</h3>
+      <p>Przeglądaj swoje ukończone szkolenia i certyfikaty.</p>
+      <button onclick="idz('certyfikaty.html')" class="btn btn-primary">Moje certyfikaty</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  
+  if (!token) {
+    window.location.href = "index.html";
+  }
+
+  function decodeToken(token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      return JSON.parse(jsonPayload);
+    } catch (err) {
+      console.error('Błąd dekodowania tokena:', err);
+      return null;
+    }
+  }
+
+  const user = decodeToken(token);
+  const API_URL = "https://masi-3c4j.onrender.com";
+
+  const roleNames = {
+    1: 'Administrator',
+    2: 'Uczestnik',
+    3: 'Trener',
+  };
+
+  document.getElementById('user-name').textContent = user.email;
+  document.getElementById('role-name').textContent = roleNames[user.rola] || 'Nieznana';
+
+  if (user.rola === 1) {
+    document.getElementById('admin-panel').style.display = 'block';
+  } else if (user.rola === 3) {
+    document.getElementById('trener-panel').style.display = 'block';
+  }
+
+  function wyloguj() {
+    localStorage.clear();
+    window.location.href = "index.html";
+  }
+
+  function idz(strona) {
+    window.location.href = strona;
+  }
+</script>
+</body>
+</html>

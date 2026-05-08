@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Moje Certyfikaty</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Moje Certyfikaty</h1>
+    <div>
+      <button onclick="Powrot()" class="btn-danger">Powrót</button>
+    </div>
+  </div>
+
+  <div id="lista-certyfikatow"></div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+
+const token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = "index.html";
+}
+
+function getAuthHeader() {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+function Powrot() {
+  window.location.href = "strona.html";
+}
+
+async function pobierzCertyfikaty() {
+  try {
+    const res = await fetch(API_URL + '/moje-certyfikaty', {
+      headers: getAuthHeader()
+    });
+    const cert = await res.json();
+    wyswietlCertyfikaty(cert);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlCertyfikaty(cert) {
+  const lista = document.getElementById('lista-certyfikatow');
+  lista.innerHTML = '';
+  
+  if (cert.length === 0) {
+    lista.innerHTML = '<p>Nie masz jeszcze żadnych certyfikatów.</p>';
+    return;
+  }
+  
+  cert.forEach(c => {
+    const card = `
+      <div class="card">
+        <h3>${c.tytul}</h3>
+        <p><strong>Opis:</strong> ${c.opis || 'Brak opisu'}</p>
+        <p><strong>Trener:</strong> ${c.imie} ${c.nazwisko}</p>
+        <p><strong>Data wydania:</strong> ${new Date(c.data_wydania).toLocaleDateString('pl-PL')}</p>
+      </div>
+    `;
+    lista.innerHTML += card;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  pobierzCertyfikaty();
+});
+</script>
+</body>
+</html>

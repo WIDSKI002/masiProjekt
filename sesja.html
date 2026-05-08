@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Sesje Szkoleniowe</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>Sesje Szkoleniowe</h1>
+      <p>Harmonogram terminow oraz lista obecnosci</p>
+    </div>
+  </div>
+  
+  <div class="tab-buttons">
+    <button onclick="pokazTabMojeSesje()" class="btn btn-primary">Moje Terminy</button>
+    <button onclick="Powrot()" class="btn-danger">Powrót</button>
+  </div>
+
+  <div id="tab-moje-sesje" class="sesja-section" style="display: block;">
+    <h2>Moje terminy szkolenia</h2>
+    <div id="lista-moich-sesji"></div>
+  </div>
+</div>
+
+<div id="modal-szczegoly-sesji" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-szczegoly-sesji')">&times;</span>
+    <h2 id="modal-sesji-tytul"></h2>
+    <p><strong>Data:</strong> <span id="modal-sesji-data"></span></p>
+    <p><strong>Lokalizacja:</strong> <span id="modal-sesji-lokalizacja"></span></p>
+    
+    <h3>Lista obecności</h3>
+    <table id="table-obecnosci">
+      <thead>
+        <tr>
+          <th>Imię</th>
+          <th>Nazwisko</th>
+          <th>Email</th>
+          <th>Obecny</th>
+          <th>Akcja</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-obecnosci"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="modal-dodaj-sesje" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-dodaj-sesje')">&times;</span>
+    <h2>Dodaj nową sesję</h2>
+    
+    <div class="form-group">
+      <label>Szkolenie:</label>
+      <select id="forma-szkolenie" style="width: 100%; padding: 8px;">
+        <option value="">-- Wybierz szkolenie --</option>
+      </select>
+    </div>
+    
+    <div class="form-group">
+      <label>Data sesji:</label>
+      <input type="date" id="forma-data" required>
+    </div>
+    
+    <div class="form-group">
+      <label>Lokalizacja:</label>
+      <input type="text" id="forma-lokalizacja" placeholder="Wpisz lokalizację" required>
+    </div>
+    
+    <button onclick="dodajSesje()" class="btn-primary">Dodaj sesję</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+let aktualnaSesja = null;
+
+const token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = "index.html";
+}
+
+function getAuthHeader() {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+function getRole() {
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.rola;
+  } catch (e) {
+    return null;
+  }
+}
+
+function Powrot() {
+  window.location.href = "strona.html";
+}
+
+function pokazTabMojeSesje() {
+  document.getElementById('tab-moje-sesje').style.display = 'block';
+  pobierzMojeSesje();
+}
+
+async function pobierzMojeSesje() {
+  const role = getRole();
+  const lista = document.getElementById('lista-moich-sesji');
+  lista.innerHTML = '';
+  
+  if (role === 3) { // Trener
+    try {
+      const res = await fetch(API_URL + '/moje-szkolenia', { headers: getAuthHeader() });
+      const szkolenia = await res.json();
+      if (szkolenia.length === 0) {
+        lista.innerHTML = '<p>Nie masz żadnych szkoleń.</p>';
+        return;
+      }
+      for (const szkolenie of szkolenia) {
+        let terminy = [];
+        try {
+          const termRes = await fetch(`${API_URL}/terminy/${szkolenie.id}`, { headers: getAuthHeader() });
+          if (termRes.ok) terminy = await termRes.json();
+        } catch {}
+        
+        if (terminy.length > 0) {
+          terminy.forEach(termin => {
+            const date = new Date(termin.termin);
+            const formatowany = date.toLocaleString('pl-PL', { 
+              year: 'numeric', 
+              month: '2-digit', 
+              day: '2-digit', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+            const card = `
+              <div class="sesja-card">
+                <h3>${szkolenie.tytul}</h3>
+                <p><strong>Termin:</strong> ${formatowany}</p>
+                <button class="btn-primary" onclick="pokaZSzczegolyTerminu(${termin.id}, '${szkolenie.tytul} - ${formatowany}')">Zaznacz obecność</button>
+              </div>
+            `;
+            lista.innerHTML += card;
+          });
+        } else {
+          const card = `
+            <div class="sesja-card">
+              <h3>${szkolenie.tytul}</h3>
+              <p>Brak terminów</p>
+            </div>
+          `;
+          lista.innerHTML += card;
+        }
+      }
+    } catch (err) {
+      alert('Błąd: ' + err);
+    }
+  } else { // Uczestnik
+    try {
+      const res = await fetch(API_URL + '/moje-zapisy', {
+        headers: getAuthHeader()
+      });
+      const zapisy = await res.json();
+      if (zapisy.length === 0) {
+        lista.innerHTML = '<p>Nie masz żadnych zapisów na szkolenia.</p>';
+        return;
+      }
+      for (const zapis of zapisy) {
+        if (zapis.status === 'aktywny') {
+          let terminy = [];
+          try {
+            const termRes = await fetch(`${API_URL}/terminy/${zapis.szkolenie_id}`, { headers: getAuthHeader() });
+            if (termRes.ok) terminy = await termRes.json();
+          } catch {}
+          let terminyTxt = terminy.length ? terminy.map(t => {
+            const date = new Date(t.termin);
+            return date.toLocaleString('pl-PL', { 
+              year: 'numeric', 
+              month: '2-digit', 
+              day: '2-digit', 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            });
+          }).join(', ') : 'Brak terminów';
+          const card = `
+            <div class="sesja-card">
+              <h3>${zapis.tytul}</h3>
+              <p><strong>Trener:</strong> ${zapis.imie} ${zapis.nazwisko}</p>
+              <p><strong>Status zapisu:</strong> ${zapis.status}</p>
+              <h4>Terminy szkolenia:</h4>
+              <p>${terminyTxt}</p>
+            </div>
+          `;
+          lista.innerHTML += card;
+        }
+      }
+    } catch (err) {
+      alert('Błąd: ' + err);
+    }
+  }
+}
+
+async function pokaZSzczegolyTerminu(termin_id, tytul) {
+  try {
+    const res = await fetch(API_URL + '/obecnosci/' + termin_id, {
+      headers: getAuthHeader()
+    });
+    const obecnosci = await res.json();
+    
+    aktualnaSesja = termin_id;
+    document.getElementById('modal-sesji-tytul').textContent = tytul;
+    document.getElementById('modal-sesji-data').textContent = 'Termin ID: ' + termin_id;
+    
+    const tbody = document.getElementById('tbody-obecnosci');
+    tbody.innerHTML = '';
+    
+    obecnosci.forEach(o => {
+      const row = `
+        <tr>
+          <td>${o.imie}</td>
+          <td>${o.nazwisko}</td>
+          <td>${o.email}</td>
+          <td>
+            <input type="checkbox" ${o.obecny ? 'checked' : ''} onchange="zaznaczObecnosc(${o.uzytkownik_id}, ${termin_id}, this.checked)">
+          </td>
+          <td><span style="color: ${o.obecny ? 'green' : 'red'}">${o.obecny ? 'Obecny' : 'Nieobecny'}</span></td>
+        </tr>
+      `;
+      tbody.innerHTML += row;
+    });
+    
+    document.getElementById('modal-szczegoly-sesji').style.display = 'block';
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function zaznaczObecnosc(uzytkownik_id, termin_id, obecny) {
+  try {
+    const res = await fetch(API_URL + '/obecnosci', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ uzytkownik_id, termin_id, obecny })
+    });
+    
+    if (res.ok) {
+      console.log('Obecność zaktualizowana');
+      pokaZSzczegolyTerminu(termin_id, document.getElementById('modal-sesji-tytul').textContent);
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function otworzModalDodajSesje() {
+  try {
+    const res = await fetch(API_URL + '/szkolenia');
+    const szkolenia = await res.json();
+    
+    const select = document.getElementById('forma-szkolenie');
+    select.innerHTML = '<option value="">-- Wybierz szkolenie --</option>';
+    
+    szkolenia.forEach(s => {
+      const option = document.createElement('option');
+      option.value = s.id;
+      option.textContent = s.tytul;
+      select.appendChild(option);
+    });
+    
+    document.getElementById('modal-dodaj-sesje').style.display = 'block';
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function dodajSesje() {
+  const szkolenie_id = parseInt(document.getElementById('forma-szkolenie').value);
+  const data_sesji = document.getElementById('forma-data').value;
+  const lokalizacja = document.getElementById('forma-lokalizacja').value;
+  
+  if (!szkolenie_id || !data_sesji || !lokalizacja) {
+    alert('Wypełnij wszystkie pola');
+    return;
+  }
+  
+  try {
+    const res = await fetch(API_URL + '/sesje', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({ szkolenie_id, data_sesji, lokalizacja })
+    });
+    
+    const data = await res.json();
+    if (res.ok) {
+      alert('Sesja dodana pomyślnie!');
+      zamknijModal('modal-dodaj-sesje');
+      document.getElementById('forma-szkolenie').value = '';
+      document.getElementById('forma-data').value = '';
+      document.getElementById('forma-lokalizacja').value = '';
+      await pokazTabMojeSesje();
+    } else {
+      alert('Błąd: ' + (data.error || 'Nie udało się dodać sesji'));
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function zamknijModal(modalId) {
+  document.getElementById(modalId).style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modalSzczegoly = document.getElementById('modal-szczegoly-sesji');
+  const modalDodaj = document.getElementById('modal-dodaj-sesje');
+  
+  if (event.target == modalSzczegoly) {
+    modalSzczegoly.style.display = 'none';
+  }
+  if (event.target == modalDodaj) {
+    modalDodaj.style.display = 'none';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  pobierzMojeSesje();
+});
+</script>
+</body>
+</html>

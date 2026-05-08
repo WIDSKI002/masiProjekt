@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Szkolenia u Goosiaków - Logowanie</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="login-container">
+  <h1 class="page-title">🎓 Szkolenia u Goosiaków</h1>
+  <div class="toggle-wrapper">
+    <button class="toggle-btn active" onclick="pokazLogowanie()">Logowanie</button>
+    <button class="toggle-btn inactive" onclick="pokazRejestracje()">Rejestracja</button>
+  </div>
+
+  <div id="logowanie" class="form-container active">
+    <h2 class="form-title">Zaloguj się</h2>
+    <input type="text" id="email" placeholder="Login / Email">
+    <input type="password" id="password" placeholder="Hasło">
+    <div class="form-buttons">
+      <button class="btn-submit" onclick="zaloguj()">Zaloguj</button>
+    </div>
+  </div>
+
+  <div id="rejestracja" class="form-container">
+    <h2 class="form-title">Utwórz konto</h2>
+    <input type="text" id="imie" placeholder="Imię">
+    <input type="text" id="nazwisko" placeholder="Nazwisko">
+    <input type="text" id="email1" placeholder="Login / Email">
+    <input type="password" id="password1" placeholder="Hasło">
+    <input type="password" id="password2" placeholder="Powtórz hasło">
+    <select id="rola">
+      <option value="">-- Wybierz rolę --</option>
+    </select>
+    <div class="form-buttons">
+      <button class="btn-submit" onclick="zarejestruj()">Zarejestruj</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+
+document.addEventListener('DOMContentLoaded', function() {
+  pobierzRole();
+});
+
+async function pobierzRole() {
+  try {
+    const response = await fetch(API_URL + '/api/role');
+    const data = await response.json();
+    const select = document.getElementById('rola');
+    select.innerHTML = '<option value="">-- Wybierz rolę --</option>';
+
+    data.forEach(rola => {
+      const option = document.createElement('option');
+      option.value = rola.id;
+      option.textContent = rola.nazwa;
+      select.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Błąd:', error);
+    document.getElementById('rola').innerHTML = '<option value="">Błąd ładowania ról</option>';
+  }
+}
+
+function pokazLogowanie() {
+  document.getElementById('logowanie').classList.add('active');
+  document.getElementById('rejestracja').classList.remove('active');
+  
+  document.querySelectorAll('.toggle-btn')[0].classList.add('active');
+  document.querySelectorAll('.toggle-btn')[0].classList.remove('inactive');
+  document.querySelectorAll('.toggle-btn')[1].classList.add('inactive');
+  document.querySelectorAll('.toggle-btn')[1].classList.remove('active');
+}
+
+
+function pokazRejestracje() {
+  document.getElementById('logowanie').classList.remove('active');
+  document.getElementById('rejestracja').classList.add('active');
+  
+  document.querySelectorAll('.toggle-btn')[0].classList.add('inactive');
+  document.querySelectorAll('.toggle-btn')[0].classList.remove('active');
+  document.querySelectorAll('.toggle-btn')[1].classList.add('active');
+  document.querySelectorAll('.toggle-btn')[1].classList.remove('inactive');
+}
+
+
+async function zarejestruj() {
+  const imie = document.getElementById("imie").value;
+  const nazwisko = document.getElementById("nazwisko").value;
+  const email = document.getElementById("email1").value;
+  const password = document.getElementById("password1").value;
+  const password2 = document.getElementById("password2").value;
+  const rola = document.getElementById("rola").value;
+  
+  if (!imie || !nazwisko || !email || !password || !password2 || !rola) {
+    alert("Proszę wypełnić wszystkie pola!");
+    return;
+  }
+  
+  if (password !== password2) {
+    alert("Hasła się nie zgadzają!");
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + '/rejestracja', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ imie, nazwisko, email, password, rola }),
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert("Rejestracja udana! Możesz się zalogować.");
+      pokazLogowanie();
+      document.getElementById("email").value = email;
+      document.getElementById("password").value = "";
+    } else {
+      alert("Błąd rejestracji: " + (data.message || "Spróbuj ponownie"));
+    }
+  } catch (err) {
+    alert("Błąd: " + err);
+  }
+}
+
+async function zaloguj() {
+  const login = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  
+  if (!login || !password) {
+    alert("Proszę wpisać login i hasło!");
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + '/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ login, password }),
+    });
+    const data = await res.json();
+    
+    if (res.ok) {
+      localStorage.setItem('token', data.token);
+      window.location.href = "strona.html";
+    } else {
+      alert("Błąd: nieprawidłowy login lub hasło");
+    }
+  } catch (err) {
+    alert("Błąd: " + err);
+  }
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,660 @@
+<script>
+function dodajTerminPole() {
+  const lista = document.getElementById('terminy-lista');
+  const div = document.createElement('div');
+  div.className = 'termin-row';
+  div.style.marginBottom = '6px';
+  div.innerHTML = `
+    <input type="datetime-local" class="termin-datetime" style="margin-right:8px;">
+    <button type="button" onclick="this.parentNode.remove()" class="btn-danger" style="padding:2px 8px;">Usuń</button>
+  `;
+  lista.appendChild(div);
+}
+
+function dodajTerminEditPole(termin = '', terminId = null) {
+  const lista = document.getElementById('terminy-edit-lista');
+  const div = document.createElement('div');
+  div.className = 'termin-row';
+  div.style.marginBottom = '6px';
+  div.dataset.terminId = terminId || '';
+  
+  let terminValue = '';
+  if (termin) {
+    try {
+      const date = new Date(termin);
+      terminValue = date.toISOString().slice(0, 16);
+    } catch (e) {
+      terminValue = termin;
+    }
+  }
+  
+  div.innerHTML = `
+    <input type="datetime-local" class="termin-datetime" value="${terminValue}" style="margin-right:8px;">
+    <button type="button" onclick="usunTerminZFormularza(this)" class="btn-danger" style="padding:2px 8px;">Usuń</button>
+  `;
+  lista.appendChild(div);
+}
+
+function usunTerminZFormularza(btn) {
+  const row = btn.parentNode;
+  const terminId = row.dataset.terminId;
+  if (terminId) {
+    fetch(API_URL + '/terminy/' + terminId, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    }).catch(err => console.error('Błąd usuwania terminu:', err));
+  }
+  row.remove();
+}
+</script>
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel Trenera</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Panel Trenera</h1>
+    <div>
+     <button onclick="Powrot()" class="btn-danger">Powrót</button>
+    </div>
+  </div>
+
+  <div class="tab-buttons">
+    <button onclick="pokazTab('tab-moje-szkolenia')" class="btn-primary">Moje szkolenia</button>
+    <button onclick="pokazTab('tab-raporty')" class="btn-secondary">Raporty</button>
+    <button onclick="pokazTab('tab-certyfikaty')" class="btn-secondary">Certyfikaty</button>
+  </div>
+
+  <div id="tab-moje-szkolenia" style="display: block;">
+    <h2>Moje szkolenia</h2>
+    <button onclick="otworzModalDodajSzkolenie()" class="btn-primary" style="margin-bottom: 15px;">Dodaj nowe szkolenie</button>
+    <div id="lista-moich-szkolen"></div>
+  </div>
+
+  <div id="tab-raporty" style="display: none;">
+    <h2>Raporty szkolenia</h2>
+    <div id="lista-raportow"></div>
+  </div>
+
+  <div id="tab-certyfikaty" style="display: none;">
+    <h2>Wydane certyfikaty</h2>
+    <div id="lista-certyfikatow"></div>
+  </div>
+</div>
+
+<div id="modal-dodaj-szkolenie" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-dodaj-szkolenie')">&times;</span>
+    <h2>Dodaj nowe szkolenie</h2>
+    <div class="form-group">
+      <label>Tytuł:</label>
+      <input type="text" id="forma-tytul" placeholder="Tytuł szkolenia" required>
+    </div>
+    <div class="form-group">
+      <label>Opis:</label>
+      <textarea id="forma-opis" placeholder="Opis szkolenia"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Limit miejsc:</label>
+      <input type="number" id="forma-limit" placeholder="Limit miejsc" min="1">
+    </div>
+    <div class="form-group">
+      <label>Cena:</label>
+      <input type="number" id="forma-cena" placeholder="Cena w zł" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label>Data rozpoczęcia:</label>
+      <input type="date" id="forma-data-start">
+    </div>
+    <div class="form-group">
+      <label>Data zakończenia:</label>
+      <input type="date" id="forma-data-end">
+    </div>
+    <div class="form-group">
+      <label>Terminy (dni i godziny):</label>
+      <div id="terminy-lista"></div>
+      <button type="button" onclick="dodajTerminPole()" class="btn-secondary" style="margin-top:8px;">Dodaj termin</button>
+    </div>
+    <button onclick="dodajSzkolenie()" class="btn-primary">Dodaj szkolenie</button>
+  </div>
+</div>
+
+<div id="modal-edytuj-szkolenie" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-edytuj-szkolenie')">&times;</span>
+    <h2>Edytuj szkolenie</h2>
+    <div class="form-group">
+      <label>Tytuł:</label>
+      <input type="text" id="forma-edit-tytul" placeholder="Tytuł szkolenia" required>
+    </div>
+    <div class="form-group">
+      <label>Opis:</label>
+      <textarea id="forma-edit-opis" placeholder="Opis szkolenia"></textarea>
+    </div>
+    <div class="form-group">
+      <label>Limit miejsc:</label>
+      <input type="number" id="forma-edit-limit" placeholder="Limit miejsc" min="1">
+    </div>
+    <div class="form-group">
+      <label>Cena:</label>
+      <input type="number" id="forma-edit-cena" placeholder="Cena w zł" step="0.01" min="0">
+    </div>
+    <div class="form-group">
+      <label>Data rozpoczęcia:</label>
+      <input type="date" id="forma-edit-data-start">
+    </div>
+    <div class="form-group">
+      <label>Data zakończenia:</label>
+      <input type="date" id="forma-edit-data-end">
+    </div>
+    <div class="form-group">
+      <label>Status:</label>
+      <select id="forma-edit-status">
+        <option value="">Wybierz status</option>
+        <option value="planowane">Planowane</option>
+        <option value="aktywne">Aktywne</option>
+        <option value="archiwalne">Archiwalne</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Terminy (dni i godziny):</label>
+      <div id="terminy-edit-lista"></div>
+      <button type="button" onclick="dodajTerminEditPole()" class="btn-secondary" style="margin-top:8px;">Dodaj termin</button>
+    </div>
+    <button onclick="aktualizujSzkolenie()" class="btn-primary">Aktualizuj szkolenie</button>
+  </div>
+</div>
+
+<div id="modal-raport" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-raport')">&times;</span>
+    <h2 id="raport-tytul"></h2>
+    
+    <h3>Lista uczestników i obecność</h3>
+    <table id="table-raport">
+      <thead>
+        <tr>
+          <th>Imię</th>
+          <th>Nazwisko</th>
+          <th>Email</th>
+          <th>Status zapisu</th>
+          <th>Obecności</th>
+          <th>Certyfikat</th>
+          <th>Akcja</th>
+        </tr>
+      </thead>
+      <tbody id="tbody-raport"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="modal-certyfikat" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-certyfikat')">&times;</span>
+    <h2>Wydaj certyfikat</h2>
+    
+    <p id="cert-info"></p>
+    
+    <button onclick="wydajCertyfikat()" class="btn-primary">Wydaj certyfikat</button>
+  </div>
+</div>
+
+<script>
+const API_URL = "https://masi-3c4j.onrender.com";
+let aktualneIdSzkolenia = null;
+let aktualnyIdUczestnika = null;
+let aktualnyIdRaportu = null;
+
+function formatDate(dateString) {
+  if (!dateString) return '';
+  if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateString;
+  }
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  } catch (e) {
+    return '';
+  }
+}
+
+const token = localStorage.getItem('token');
+if (!token) {
+  window.location.href = "index.html";
+}
+
+function getAuthHeader() {
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+function Powrot() {
+  window.location.href = "strona.html";
+}
+
+function pokazTab(tabId) {
+  document.querySelectorAll('[id^="tab-"]').forEach(tab => {
+    tab.style.display = 'none';
+  });
+  document.getElementById(tabId).style.display = 'block';
+  
+  if (tabId === 'tab-moje-szkolenia') {
+    pobierzMojeSzkolenia();
+  } else if (tabId === 'tab-raporty') {
+    pobierzRaporty();
+  } else if (tabId === 'tab-certyfikaty') {
+    pobierzCertyfikaty();
+  }
+}
+
+async function pobierzMojeSzkolenia() {
+  try {
+    const res = await fetch(API_URL + '/moje-szkolenia', {
+      headers: getAuthHeader()
+    });
+    const szkolenia = await res.json();
+    wyswietlMojeSzkolenia(szkolenia);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function wyswietlMojeSzkolenia(szkolenia) {
+  const lista = document.getElementById('lista-moich-szkolen');
+  lista.innerHTML = '';
+  if (szkolenia.length === 0) {
+    lista.innerHTML = '<p>Nie masz żadnych szkoleń.</p>';
+    return;
+  }
+  for (const s of szkolenia) {
+    let terminy = [];
+    try {
+      const res = await fetch(`${API_URL}/terminy/${s.id}`, { headers: getAuthHeader() });
+      if (res.ok) terminy = await res.json();
+    } catch (err) {
+      console.error('Błąd pobierania terminów:', err);
+    }
+    
+    let terminyTxt = 'Brak';
+    if (terminy.length > 0) {
+      terminyTxt = terminy.map(t => {
+        const date = new Date(t.termin);
+        return date.toLocaleString('pl-PL', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+      }).join(', ');
+    }
+    
+    const card = `
+      <div class="card">
+        <h3>${s.tytul}</h3>
+        <p><strong>Opis:</strong> ${s.opis || 'Brak'}</p>
+        <p><strong>Status:</strong> ${s.status || 'Aktywne'} | <strong>Limit:</strong> ${s.limit_miejsc || 'Brak'} | <strong>Cena:</strong> ${s.cena || 'Brak'} zł</p>
+        <p><strong>Harmonogram:</strong> ${s.data_rozpoczecia ? new Date(s.data_rozpoczecia).toLocaleDateString('pl-PL') : 'Brak'} - ${s.data_zakonczenia ? new Date(s.data_zakonczenia).toLocaleDateString('pl-PL') : 'Brak'}</p>
+        <p><strong>Terminy:</strong> ${terminyTxt}</p>
+        <button onclick="otworzModalEdytuj(${s.id})" class="btn-secondary">Edytuj</button>
+        <button onclick="usunSzkolenie(${s.id})" class="btn-danger">Usuń</button>
+      </div>
+    `;
+    lista.innerHTML += card;
+  }
+}
+
+function otworzModalDodajSzkolenie() {
+  document.getElementById('modal-dodaj-szkolenie').style.display = 'block';
+}
+
+async function dodajSzkolenie() {
+  const tytul = document.getElementById('forma-tytul').value;
+  const opis = document.getElementById('forma-opis').value;
+  const limit_miejsc = parseInt(document.getElementById('forma-limit').value) || null;
+  const cena = parseFloat(document.getElementById('forma-cena').value) || null;
+  const data_rozpoczecia = document.getElementById('forma-data-start').value || null;
+  const data_zakonczenia = document.getElementById('forma-data-end').value || null;
+  
+  if (!tytul) {
+    alert('Wpisz tytuł');
+    return;
+  }
+  
+  try {
+    const res = await fetch(API_URL + '/dodajSzkolenie', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({
+        tytul,
+        opis,
+        limit_miejsc,
+        cena,
+        data_rozpoczecia,
+        data_zakonczenia,
+        status: 'planowane'
+      })
+    });
+    
+    if (res.ok) {
+      const szkolenie = await res.json();
+      
+      const terminElements = document.querySelectorAll('#terminy-lista .termin-row');
+      for (const elem of terminElements) {
+        const datetime = elem.querySelector('.termin-datetime').value;
+        if (datetime) {
+          try {
+            await fetch(API_URL + '/terminy', {
+              method: 'POST',
+              headers: getAuthHeader(),
+              body: JSON.stringify({
+                szkolenie_id: szkolenie.id,
+                termin: new Date(datetime).toISOString()
+              })
+            });
+          } catch (err) {
+            console.error('Błąd dodawania terminu:', err);
+          }
+        }
+      }
+      
+      alert('Szkolenie dodane!');
+      zamknijModal('modal-dodaj-szkolenie');
+      document.getElementById('forma-tytul').value = '';
+      document.getElementById('forma-opis').value = '';
+      document.getElementById('forma-limit').value = '';
+      document.getElementById('forma-cena').value = '';
+      document.getElementById('forma-data-start').value = '';
+      document.getElementById('forma-data-end').value = '';
+      document.getElementById('terminy-lista').innerHTML = '';
+      pobierzMojeSzkolenia();
+    } else {
+      const error = await res.json();
+      alert('Błąd: ' + (error.error || 'Nie udało się dodać szkolenia'));
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function otworzModalEdytuj(szkolenie_id) {
+  try {
+    const res = await fetch(API_URL + '/szkolenia/' + szkolenie_id);
+    const szkolenie = await res.json();
+    
+    aktualneIdSzkolenia = szkolenie_id;
+    document.getElementById('forma-edit-tytul').value = szkolenie.tytul;
+    document.getElementById('forma-edit-opis').value = szkolenie.opis || '';
+    document.getElementById('forma-edit-limit').value = szkolenie.limit_miejsc || '';
+    document.getElementById('forma-edit-cena').value = szkolenie.cena || '';
+    document.getElementById('forma-edit-data-start').value = formatDate(szkolenie.data_rozpoczecia);
+    document.getElementById('forma-edit-data-end').value = formatDate(szkolenie.data_zakonczenia);
+    document.getElementById('forma-edit-status').value = szkolenie.status || '';
+    
+    document.getElementById('terminy-edit-lista').innerHTML = '';
+    try {
+      const terminyRes = await fetch(API_URL + '/terminy/' + szkolenie_id, {
+        headers: getAuthHeader()
+      });
+      if (terminyRes.ok) {
+        const terminy = await terminyRes.json();
+        terminy.forEach(t => {
+          dodajTerminEditPole(t.termin, t.id);
+        });
+      }
+    } catch (err) {
+      console.error('Błąd pobierania terminów:', err);
+    }
+    
+    document.getElementById('modal-edytuj-szkolenie').style.display = 'block';
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function aktualizujSzkolenie() {
+  const tytul = document.getElementById('forma-edit-tytul').value;
+  const opis = document.getElementById('forma-edit-opis').value;
+  const limit_miejsc = document.getElementById('forma-edit-limit').value;
+  const cena = document.getElementById('forma-edit-cena').value;
+  const data_rozpoczecia = document.getElementById('forma-edit-data-start').value;
+  const data_zakonczenia = document.getElementById('forma-edit-data-end').value;
+  const status = document.getElementById('forma-edit-status').value;
+  
+  try {
+    const res = await fetch(API_URL + '/szkolenia/' + aktualneIdSzkolenia, {
+      method: 'PUT',
+      headers: getAuthHeader(),
+      body: JSON.stringify({
+        tytul,
+        opis,
+        limit_miejsc,
+        cena,
+        data_rozpoczecia,
+        data_zakonczenia,
+        status
+      })
+    });
+    
+    if (res.ok) {
+      const terminElements = document.querySelectorAll('#terminy-edit-lista .termin-row');
+      for (const elem of terminElements) {
+        const datetime = elem.querySelector('.termin-datetime').value;
+        const terminId = elem.dataset.terminId;
+        
+        if (!datetime) continue;
+        
+        try {
+          if (terminId) {
+            await fetch(API_URL + '/terminy/' + terminId, {
+              method: 'PUT',
+              headers: getAuthHeader(),
+              body: JSON.stringify({
+                termin: new Date(datetime).toISOString()
+              })
+            });
+          } else {
+            await fetch(API_URL + '/terminy', {
+              method: 'POST',
+              headers: getAuthHeader(),
+              body: JSON.stringify({
+                szkolenie_id: aktualneIdSzkolenia,
+                termin: new Date(datetime).toISOString()
+              })
+            });
+          }
+        } catch (err) {
+          console.error('Błąd aktualizacji terminu:', err);
+        }
+      }
+      
+      alert('Szkolenie zaktualizowane!');
+      zamknijModal('modal-edytuj-szkolenie');
+      pobierzMojeSzkolenia();
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function usunSzkolenie(szkolenie_id) {
+  if (!confirm('Czy na pewno chcesz usunąć to szkolenie?')) return;
+  
+  try {
+    const res = await fetch(API_URL + '/szkolenia/' + szkolenie_id, {
+      method: 'DELETE',
+      headers: getAuthHeader()
+    });
+    
+    if (res.ok) {
+      alert('Szkolenie usunięte!');
+      pobierzMojeSzkolenia();
+    }
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+async function pobierzRaporty() {
+  try {
+    const res = await fetch(API_URL + '/moje-szkolenia', {
+      headers: getAuthHeader()
+    });
+    const szkolenia = await res.json();
+    wyswietlRaporty(szkolenia);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlRaporty(szkolenia) {
+  const lista = document.getElementById('lista-raportow');
+  lista.innerHTML = '';
+  
+  szkolenia.forEach(s => {
+    const card = `
+      <div class="card">
+        <h3>${s.tytul}</h3>
+        <p>${s.opis || 'Brak opisu'}</p>
+        <button onclick="pokazRaport(${s.id}, '${s.tytul}')" class="btn-secondary">Wyświetl raport</button>
+      </div>
+    `;
+    lista.innerHTML += card;
+  });
+}
+
+async function pokazRaport(szkolenie_id, tytul) {
+  try {
+    const res = await fetch(API_URL + '/raporty/szkolenie/' + szkolenie_id, {
+      headers: getAuthHeader()
+    });
+    const raport = await res.json();
+    console.log(raport);
+    aktualnyIdRaportu = szkolenie_id;
+    document.getElementById('raport-tytul').textContent = tytul;
+    
+    const tbody = document.getElementById('tbody-raport');
+    tbody.innerHTML = '';
+    
+    raport.uczestnicy.forEach(u => {
+      const obecnosci_count = u.obecnosci.filter(o => o.obecny).length;
+      const row = `
+        <tr>
+          <td>${u.imie}</td>
+          <td>${u.nazwisko}</td>
+          <td>${u.email}</td>
+          <td>${u.status}</td>
+          <td>${obecnosci_count}/${raport.terminy.length}</td>
+          <td>${u.ma_certyfikat ? 'Tak ✓' : 'Nie'}</td>
+          <td>
+            ${!u.ma_certyfikat ? `<button onclick="otworzModalWydajCert(${u.id}, '${u.imie} ${u.nazwisko}')" class="btn-primary" style="font-size:12px; padding: 5px 10px;">Wydaj</button>` : ''}
+          </td>
+        </tr>
+      `;
+      tbody.innerHTML += row;
+    });
+    
+    document.getElementById('modal-raport').style.display = 'block';
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function otworzModalWydajCert(uczestnik_id, nazwa) {
+  aktualnyIdUczestnika = uczestnik_id;
+  document.getElementById('cert-info').textContent = 'Wydaj certyfikat dla: ' + nazwa;
+  document.getElementById('modal-certyfikat').style.display = 'block';
+}
+
+async function wydajCertyfikat() {
+  try {
+    console.log('Wydawanie certyfikatu - uzytkownik:', aktualnyIdUczestnika, 'szkolenie:', aktualnyIdRaportu);
+    
+    if (!aktualnyIdUczestnika || !aktualnyIdRaportu) {
+      alert('Błąd: Brak danych uczestnika lub szkolenia');
+      return;
+    }
+    
+    const res = await fetch(API_URL + '/certyfikaty', {
+      method: 'POST',
+      headers: getAuthHeader(),
+      body: JSON.stringify({
+        uzytkownik_id: aktualnyIdUczestnika,
+        szkolenie_id: aktualnyIdRaportu
+      })
+    });
+    
+    const data = await res.json();
+    
+    if (res.ok) {
+      alert('Certyfikat wydany!');
+      zamknijModal('modal-certyfikat');
+      pokazRaport(aktualnyIdRaportu, document.getElementById('raport-tytul').textContent);
+    } else {
+      alert('Błąd: ' + (data.error || data.message || 'Nie udało się wydać certyfikatu'));
+    }
+  } catch (err) {
+    console.error('Błąd przy wydawaniu certyfikatu:', err);
+    alert('Błąd: ' + err);
+  }
+}
+
+async function pobierzCertyfikaty() {
+  try {
+    const res = await fetch(API_URL + '/certyfikaty-trenera', {
+      headers: getAuthHeader()
+    });
+    const cert = await res.json();
+    wyswietlCertyfikaty(cert);
+  } catch (err) {
+    alert('Błąd: ' + err);
+  }
+}
+
+function wyswietlCertyfikaty(cert) {
+  const lista = document.getElementById('lista-certyfikatow');
+  lista.innerHTML = '';
+  
+  if (cert.length === 0) {
+    lista.innerHTML = '<p>Nie wydałeś jeszcze żadnych certyfikatów.</p>';
+    return;
+  }
+  
+  cert.forEach(c => {
+    const card = `
+      <div class="card">
+        <h3>${c.tytul}</h3>
+        <p><strong>Uczestnik:</strong> ${c.imie} ${c.nazwisko}</p>
+        <p><strong>Data wydania:</strong> ${new Date(c.data_wydania).toLocaleDateString('pl-PL')}</p>
+      </div>
+    `;
+    lista.innerHTML += card;
+  });
+}
+
+function zamknijModal(modalId) {
+  document.getElementById(modalId).style.display = 'none';
+}
+
+window.onclick = function(event) {
+  const modals = document.querySelectorAll('.modal');
+  modals.forEach(modal => {
+    if (event.target == modal) {
+      modal.style.display = 'none';
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  pobierzMojeSzkolenia();
+});
+</script>
+</body>
+</html>
