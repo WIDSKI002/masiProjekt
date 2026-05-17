@@ -47,12 +47,25 @@
       <ul id="program-lista"></ul>
     </div>
     
-    <button id="btn-zapisz" class="btn-primary" onclick="zapisSieNaSzkolenie()">Zapisz się</button>
+    <button id="btn-zapisz" class="btn-primary" onclick="rozpocznijPlatnosc()">Zapisz się</button>
+  </div>
+</div>
+
+<div id="modal-platnosc" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="zamknijModal('modal-platnosc')">&times;</span>
+    <h2>Platnosc za szkolenie</h2>
+    <p>Przekierowano do symulowanej bramki platnosci.</p>
+    <p><strong>Szkolenie:</strong> <span id="platnosc-tytul"></span></p>
+    <p><strong>Kwota:</strong> <span id="platnosc-kwota"></span> zl</p>
+    <p id="platnosc-status" style="font-weight: bold;">Oczekiwanie na platnosc...</p>
+    <button id="btn-oplac" class="btn-primary" onclick="oplacSzkolenie()">Zaplac teraz</button>
+    <button id="btn-anuluj-platnosc" class="btn-secondary" onclick="anulujPlatnosc()">Anuluj</button>
   </div>
 </div>
 
 <script>
-const API_URL = "https://masi-3c4j.onrender.com";
+const API_URL = "https://masiprojekt.onrender.com";
 let aktualneSzkolenie = null;
 let wszystkieSzkolenia = [];
 
@@ -168,6 +181,43 @@ async function pokazSzczegoly(szkolenie_id) {
   }
 }
 
+function rozpocznijPlatnosc() {
+  if (!aktualneSzkolenie) {
+    alert('Najpierw wybierz szkolenie.');
+    return;
+  }
+
+  document.getElementById('modal-szczegoly').style.display = 'none';
+  document.getElementById('platnosc-tytul').textContent = aktualneSzkolenie.tytul;
+  document.getElementById('platnosc-kwota').textContent = aktualneSzkolenie.cena || '0';
+  document.getElementById('platnosc-status').textContent = 'Oczekiwanie na platnosc...';
+  document.getElementById('btn-oplac').disabled = false;
+  document.getElementById('btn-oplac').textContent = 'Zaplac teraz';
+  document.getElementById('btn-anuluj-platnosc').disabled = false;
+  document.getElementById('modal-platnosc').style.display = 'block';
+}
+
+function anulujPlatnosc() {
+  zamknijModal('modal-platnosc');
+  document.getElementById('modal-szczegoly').style.display = 'block';
+}
+
+function oplacSzkolenie() {
+  const btnOplac = document.getElementById('btn-oplac');
+  const btnAnuluj = document.getElementById('btn-anuluj-platnosc');
+  const status = document.getElementById('platnosc-status');
+
+  btnOplac.disabled = true;
+  btnAnuluj.disabled = true;
+  btnOplac.textContent = 'Przetwarzanie...';
+  status.textContent = 'Platnosc w toku, prosze czekac...';
+
+  setTimeout(async () => {
+    status.textContent = 'Platnosc zaakceptowana. Zapisywanie na szkolenie...';
+    await zapisSieNaSzkolenie();
+  }, 1500);
+}
+
 async function zapisSieNaSzkolenie() {
   try {
     const res = await fetch(API_URL + '/zapisy', {
@@ -178,14 +228,23 @@ async function zapisSieNaSzkolenie() {
     
     const data = await res.json();
     if (res.ok) {
-      alert('Pomyślnie zapisano na szkolenie!');
+      alert('Platnosc zakonczona. Pomyslnie zapisano na szkolenie!');
+      zamknijModal('modal-platnosc');
       zamknijModal('modal-szczegoly');
       pokazTabMojeZapisy();
     } else {
       alert('Błąd: ' + data.error);
+      document.getElementById('btn-oplac').disabled = false;
+      document.getElementById('btn-oplac').textContent = 'Sprobuj ponownie';
+      document.getElementById('btn-anuluj-platnosc').disabled = false;
+      document.getElementById('platnosc-status').textContent = 'Nie udalo sie zapisac po platnosci.';
     }
   } catch (err) {
     alert('Błąd: ' + err);
+    document.getElementById('btn-oplac').disabled = false;
+    document.getElementById('btn-oplac').textContent = 'Sprobuj ponownie';
+    document.getElementById('btn-anuluj-platnosc').disabled = false;
+    document.getElementById('platnosc-status').textContent = 'Wystapil blad podczas zapisu.';
   }
 }
 
@@ -267,9 +326,13 @@ function zamknijModal(modalId) {
 }
 
 window.onclick = function(event) {
-  const modal = document.getElementById('modal-szczegoly');
-  if (event.target == modal) {
-    modal.style.display = 'none';
+  const modalSzczegoly = document.getElementById('modal-szczegoly');
+  const modalPlatnosc = document.getElementById('modal-platnosc');
+  if (event.target == modalSzczegoly) {
+    modalSzczegoly.style.display = 'none';
+  }
+  if (event.target == modalPlatnosc) {
+    modalPlatnosc.style.display = 'none';
   }
 }
 </script>
